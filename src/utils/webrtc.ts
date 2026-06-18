@@ -146,7 +146,12 @@ export async function getScreenShareStream(): Promise<MediaStream> {
 
 // Device enumeration functions
 export async function getAudioInputDevices(): Promise<MediaDeviceInfo[]> {
-  await navigator.mediaDevices.getUserMedia({ audio: true });
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop());
+  } catch (e) {
+    console.warn("Audio permission denied or unavailable:", e);
+  }
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices.filter(device => device.kind === 'audioinput');
 }
@@ -157,7 +162,12 @@ export async function getAudioOutputDevices(): Promise<MediaDeviceInfo[]> {
 }
 
 export async function getVideoInputDevices(): Promise<MediaDeviceInfo[]> {
-  await navigator.mediaDevices.getUserMedia({ video: true });
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(track => track.stop());
+  } catch (e) {
+    console.warn("Video permission denied or unavailable:", e);
+  }
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices.filter(device => device.kind === 'videoinput');
 }

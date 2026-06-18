@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPeerConnection, generateClientId, getMediaStreamWithDevice, getScreenShareStream } from '../utils/webrtc';
-import { config } from '../config/env';
-
-const WS_URL = config.wsUrl;
+import { supabase } from '../lib/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface UseWebRTCProps {
   roomId: string;
@@ -40,8 +39,18 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
   const originalVideoTrack = useRef<MediaStreamTrack | null>(null);
   const screenShareStream = useRef<MediaStream | null>(null);
 
-  const ws = useRef<WebSocket | null>(null);
+  const channel = useRef<RealtimeChannel | null>(null);
   const pc = useRef<RTCPeerConnection | null>(null);
+
+  const sendSignalingMessage = useCallback((data: any) => {
+    if (channel.current) {
+      channel.current.send({
+        type: 'broadcast',
+        event: 'signaling',
+        payload: data
+      });
+    }
+  }, []);
   const clientId = useRef<string>(generateClientId());
   const iceCandidateQueue = useRef<RTCIceCandidateInit[]>([]);
   const hasRemoteDescription = useRef<boolean>(false);
@@ -121,7 +130,7 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
   }, []);
 
   const createOffer = useCallback(async (peerId: string) => {
-    if (!pc.current || !ws.current) return;
+    if (!pc.current || !channel.current) return;
 
     try {
       console.log('📤 Creating offer for peer:', peerId);
@@ -141,11 +150,11 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
       await pc.current.setLocalDescription(offer);
       console.log('📤 Local description set, sending offer');
 
-      ws.current.send(JSON.stringify({
+      sendSignalingMessage({
         type: 'offer',
         offer,
         target: peerId
-      }));
+      });
     } catch (err) {
       console.error('Error creating offer:', err);
       setError('Failed to create connection offer');
@@ -153,7 +162,7 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
   }, []);
 
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit, from: string) => {
-    if (!pc.current || !ws.current) return;
+    if (!pc.current || !channel.current) return;
 
     try {
       console.log('📥 Setting remote description from offer');
@@ -164,11 +173,11 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
       const answer = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answer);
 
-      ws.current.send(JSON.stringify({
+      sendSignalingMessage({
         type: 'answer',
         answer,
         target: from
-      }));
+      });
 
       // Process any queued ICE candidates
       await processQueuedCandidates();
@@ -265,12 +274,12 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
                 foundation: event.candidate.foundation
               });
 
-              if (ws.current && peerId.current) {
-                ws.current.send(JSON.stringify({
+              if (channel.current && peerId.current) {
+                sendSignalingMessage({
                   type: 'ice-candidate',
                   candidate: event.candidate,
                   target: peerId.current
-                }));
+                });
               }
             } else {
               console.log('🧊 ICE gathering completed (null candidate)');
@@ -323,12 +332,12 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
                     try {
                       const offer = await pc.current!.createOffer({ iceRestart: true });
                       await pc.current!.setLocalDescription(offer);
-                      if (ws.current) {
-                        ws.current.send(JSON.stringify({
+                      if (channel.current) {
+                        sendSignalingMessage({
                           type: 'offer',
                           offer,
                           target: peerId.current
-                        }));
+                        });
                       }
                     } catch (restartErr) {
                       console.error('ICE restart failed:', restartErr);
@@ -406,33 +415,29 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
           };
         }
 
-        ws.current = new WebSocket(WS_URL);
+        channel.current = supabase.channel(`room-${roomId}`, {
+          config: { broadcast: { self: false } }
+        });
 
-        ws.current.onopen = () => {
-          if (!mounted || !ws.current) return;
-
-          ws.current.send(JSON.stringify({
-            type: 'join',
-            roomId,
-            userName,
-            clientId: clientId.current
-          }));
-          console.log('📡 Sent join message:', {
-            type: 'join',
-            roomId,
-            userName,
-            clientId: clientId.current
-          });
-          setConnectionStatus('Waiting for other participant...');
-        };
-
-        ws.current.onmessage = async (event) => {
-          const data = JSON.parse(event.data);
+        channel.current.on('broadcast', { event: 'signaling' }, async ({ payload: data }) => {
+          if (!mounted) return;
           console.log('📡 Received message:', data.type, data);
 
+          if (data.target && data.target !== clientId.current) return;
+
           switch (data.type) {
-            case 'joined':
-              console.log('Joined room:', data.roomId);
+            case 'join':
+              console.log('Peer joined room:', data.clientId);
+              setPeerName(data.userName);
+              peerId.current = data.clientId;
+              setConnectionStatus('Peer joined, waiting for connection...');
+              
+              sendSignalingMessage({
+                type: 'ready',
+                target: data.clientId,
+                peerId: clientId.current,
+                peerName: userName
+              });
               break;
             case 'ready':
               setPeerName(data.peerName);
@@ -446,7 +451,7 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
               setConnectionStatus('Peer joined, waiting for connection...');
               break;
             case 'offer':
-              await handleOffer(data.offer, data.from);
+              await handleOffer(data.offer, data.from || data.clientId || data.peerId);
               break;
             case 'answer':
               await handleAnswer(data.answer);
@@ -472,6 +477,7 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
               console.log('⌨️ Remote typing:', data.isTyping);
               setRemoteTyping(data.isTyping);
               break;
+            case 'leave':
             case 'peer-left':
               setRemoteStream(null);
               remoteStreamRef.current = null;
@@ -480,53 +486,45 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
               peerId.current = null;
               setConnectionStatus('Participant left');
               break;
+            case 'end-call':
             case 'call-ended-by-creator':
               console.log('📞 Received call-ended-by-creator event:', data);
               setConnectionStatus('Call ended by room creator');
-              setError(`Call ended: ${data.creatorName} ended the call`);
+              setError(`Call ended: ${data.creatorName || data.userName || 'Peer'} ended the call`);
 
-              // Clean up media tracks
               if (localStream) {
                 localStream.getTracks().forEach(track => {
                   if (track.readyState === 'live') {
                     track.stop();
-                    console.log(`📞 Stopped ${track.kind} track due to call end`);
                   }
                 });
               }
 
-              // Clean up peer connection
               if (pc.current) {
                 pc.current.close();
                 pc.current = null;
-                console.log('📞 Closed peer connection due to call end');
               }
 
-              // Store the notification message for after redirect
-              localStorage.setItem('callEndedNotification', `${data.creatorName} ended the call`);
-              console.log('📞 Stored notification, redirecting to home...');
-
-              // Redirect to home page after a short delay
+              localStorage.setItem('callEndedNotification', `${data.creatorName || data.userName || 'Peer'} ended the call`);
               setTimeout(() => {
                 window.location.href = '/';
               }, 1000);
               break;
-            case 'error':
-              setError(data.message);
-              setConnectionStatus('Error');
-              break;
           }
-        };
+        });
 
-        ws.current.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          setError('Connection error occurred');
-          setConnectionStatus('Connection error');
-        };
-
-        ws.current.onclose = () => {
-          setConnectionStatus('Connection closed');
-        };
+        channel.current.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            sendSignalingMessage({
+              type: 'join',
+              roomId,
+              userName,
+              clientId: clientId.current
+            });
+            console.log('📡 Sent join message');
+            setConnectionStatus('Waiting for other participant...');
+          }
+        });
 
       } catch (err) {
         if (mounted) {
@@ -564,10 +562,10 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
         console.log('✅ Cleanup: Closed peer connection on unmount');
       }
 
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify({ type: 'leave' }));
-        ws.current.close();
-        console.log('✅ Cleanup: Closed WebSocket on unmount');
+      if (channel.current) {
+        channel.current.send({ type: 'broadcast', event: 'signaling', payload: { type: 'leave' } });
+        supabase.removeChannel(channel.current);
+        console.log('✅ Cleanup: Closed channel on unmount');
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -600,26 +598,22 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
     console.log('🚪 Leaving call...');
 
     // Send leave or end-call message to server FIRST before cleanup
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+    if (channel.current) {
       if (isEndCall) {
-        console.log('📞 Sending end-call message to server');
-        console.log('📞 WebSocket state:', ws.current.readyState);
-        ws.current.send(JSON.stringify({ type: 'end-call' }));
-        console.log('📞 End-call message sent, waiting before close...');
-        // Don't close WebSocket immediately for end-call to allow server response
+        console.log('📞 Sending end-call message');
+        channel.current.send({ type: 'broadcast', event: 'signaling', payload: { type: 'end-call', userName } });
         setTimeout(() => {
-          if (ws.current) {
-            console.log('📞 Closing WebSocket after delay');
-            ws.current.close();
+          if (channel.current) {
+            supabase.removeChannel(channel.current);
           }
-        }, 500); // Increased delay
+        }, 500);
       } else {
-        console.log('📞 Sending leave message to server');
-        ws.current.send(JSON.stringify({ type: 'leave' }));
-        ws.current.close();
+        console.log('📞 Sending leave message');
+        channel.current.send({ type: 'broadcast', event: 'signaling', payload: { type: 'leave' } });
+        supabase.removeChannel(channel.current);
       }
     } else {
-      console.log('📞 WebSocket not available or not open:', ws.current?.readyState);
+      console.log('📞 Channel not available');
     }
 
     // Stop all local media tracks to release camera/microphone
@@ -652,7 +646,7 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
 
     // Reset WebSocket after delay for end-call
     if (!isEndCall) {
-      ws.current = null;
+      channel.current = null;
     }
 
     if (shouldReload) {
@@ -839,12 +833,12 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
         setIsScreenSharing(false);
 
         // Notify remote peer that screen sharing stopped
-        if (ws.current && peerId.current) {
-          ws.current.send(JSON.stringify({
+        if (channel.current && peerId.current) {
+          sendSignalingMessage({
             type: 'screen-share-state',
             isSharing: false,
             target: peerId.current
-          }));
+          });
         }
 
         return false;
@@ -890,12 +884,12 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
           setIsScreenSharing(true);
 
           // Notify remote peer that screen sharing started
-          if (ws.current && peerId.current) {
-            ws.current.send(JSON.stringify({
+          if (channel.current && peerId.current) {
+            sendSignalingMessage({
               type: 'screen-share-state',
               isSharing: true,
               target: peerId.current
-            }));
+            });
           }
 
           return true;
@@ -914,7 +908,7 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
 
   // Send chat message
   const sendMessage = useCallback((message: string) => {
-    if (!ws.current || !peerId.current) return;
+    if (!channel.current || !peerId.current) return;
 
     const messageData = {
       id: Date.now().toString() + Math.random(),
@@ -928,24 +922,24 @@ export function useWebRTC({ roomId, userName }: UseWebRTCProps) {
     setMessages(prev => [...prev, messageData]);
 
     // Send to remote peer
-    ws.current.send(JSON.stringify({
+    sendSignalingMessage({
       type: 'chat-message',
       message: message,
       senderName: userName,
       timestamp: Date.now(),
       target: peerId.current
-    }));
+    });
   }, [userName]);
 
   // Send typing indicator
   const sendTypingIndicator = useCallback((isTyping: boolean) => {
-    if (!ws.current || !peerId.current) return;
+    if (!channel.current || !peerId.current) return;
 
-    ws.current.send(JSON.stringify({
+    sendSignalingMessage({
       type: 'typing-indicator',
       isTyping,
       target: peerId.current
-    }));
+    });
   }, []);
 
   // Clear chat messages

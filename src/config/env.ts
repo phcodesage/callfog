@@ -1,17 +1,16 @@
 // Environment configuration
 // This file reads environment variables and provides them to the application
 
-const getEnvVar = (key: string): string => {
-  if (typeof process !== 'undefined' && process.env[key] !== undefined) {
-    return process.env[key] as string;
-  }
-  throw new Error(`Environment variable ${key} is required`);
-};
-
 export const config = {
-  wsUrl: getEnvVar('NEXT_PUBLIC_WS_URL'),
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
   apiUrl: process.env.NEXT_PUBLIC_API_URL || '',
 } as const;
+
+// Ensure Supabase keys are present
+if (!config.supabaseUrl || !config.supabaseKey) {
+  console.warn('Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY) are missing.');
+}
 
 export const getApiUrl = (): string => {
   if (config.apiUrl) return config.apiUrl;
