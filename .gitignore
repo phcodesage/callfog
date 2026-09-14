@@ -26,3 +26,10 @@ dist-ssr
 
 # Local notes (not committed)
 /notebook/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Server secrets (generated on the host by infra/deploy.sh)
+infra/.env
+infra/livekit.yaml

@@ -1,0 +1,41 @@
+# Callfog backend: Caddy (HTTPS) + LiveKit (SFU + TURN) + token service.
+# All services use host networking so LiveKit's UDP port range isn't NAT'd by Docker.
+name: callfog
+
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    network_mode: host
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+
+  token:
+    build: ./token
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3001"
+      LIVEKIT_HTTP_URL: http://127.0.0.1:7880
+      PUBLIC_LIVEKIT_URL: wss://${PUBLIC_HOST}
+    depends_on:
+      - livekit
+
+volumes:
+  caddy_data:
+  caddy_config:

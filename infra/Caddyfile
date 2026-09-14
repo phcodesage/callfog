@@ -1,0 +1,9 @@
+{$PUBLIC_HOST} {
+	encode zstd gzip
+
+	@api path /api/* /healthz
+	reverse_proxy @api 127.0.0.1:3001
+
+	# Everything else is LiveKit signaling (WebSocket) and its HTTP API.
+	reverse_proxy 127.0.0.1:7880
+}

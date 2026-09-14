@@ -1,0 +1,12 @@
+{
+  "name": "callfog-token",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "livekit-server-sdk": "2.19.0"
+  }
+}

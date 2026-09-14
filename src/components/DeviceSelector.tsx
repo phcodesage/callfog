@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings, Mic, Video, Volume2 } from 'lucide-react';
-import { getAudioInputDevices, getAudioOutputDevices, getVideoInputDevices } from '../utils/webrtc';
+import { getAudioInputDevices, getAudioOutputDevices, getVideoInputDevices } from '../utils/devices';
 
 interface DeviceSelectorProps {
   onAudioInputChange: (deviceId: string) => void;

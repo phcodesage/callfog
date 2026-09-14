@@ -2,19 +2,21 @@
 
 import { useRouter } from 'next/navigation';
 import { Home } from '../src/views/Home';
+import { createRoom } from '../src/lib/callfogApi';
+import { saveCreatorKey, saveUserName } from '../src/lib/session';
 
 export default function Page() {
   const router = useRouter();
 
-  const handleCreateMeeting = (roomId: string, userName: string) => {
-    localStorage.setItem('meetingUserName', userName);
-    localStorage.setItem('meetingIsRoomCreator', 'true');
+  const handleCreateMeeting = async (userName: string) => {
+    const { roomId, creatorKey } = await createRoom();
+    saveUserName(userName);
+    saveCreatorKey(roomId, creatorKey);
     router.push(`/room/${roomId}`);
   };
 
   const handleJoinMeeting = (roomId: string, userName: string) => {
-    localStorage.setItem('meetingUserName', userName);
-    localStorage.setItem('meetingIsRoomCreator', 'false');
+    saveUserName(userName);
     router.push(`/room/${roomId}`);
   };
 

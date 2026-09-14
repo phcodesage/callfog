@@ -1,39 +1,36 @@
-import { useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { User, MicOff } from 'lucide-react';
 
 interface VideoPlayerProps {
   stream: MediaStream | null;
-  userName: string;
-  muted?: boolean;
-  isLocal?: boolean;
+  label: string;
+  videoEnabled: boolean;
+  audioEnabled: boolean;
+  fit?: 'cover' | 'contain';
+  mirror?: boolean;
 }
 
-export function VideoPlayer({ stream, userName, muted = false, isLocal = false }: VideoPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+// Video only: remote audio is played through elements attached by useCallfog,
+// so every <video> here is muted.
+export function VideoPlayer({ stream, label, videoEnabled, audioEnabled, fit = 'cover', mirror = false }: VideoPlayerProps) {
+  // A callback ref re-attaches the stream whenever the <video> remounts or the stream changes.
+  const attachStream = useCallback((video: HTMLVideoElement | null) => {
+    if (video && video.srcObject !== stream) {
+      video.srcObject = stream;
     }
   }, [stream]);
 
-  const hasVideo = stream?.getVideoTracks().some(track => track.enabled);
-  const hasAudio = stream?.getAudioTracks().some(track => track.enabled);
+  const showVideo = videoEnabled && !!stream;
 
   return (
     <div className="relative w-full h-full glass rounded-3xl overflow-hidden aspect-video border-white/5 shadow-2xl group">
-      {hasVideo ? (
+      {showVideo ? (
         <video
-          ref={videoRef}
+          ref={attachStream}
           autoPlay
           playsInline
-          muted={muted}
-          className="w-full h-full object-cover"
-          style={{ 
-            maxWidth: '100%',
-            width: '100%',
-            height: '100%'
-          }}
+          muted
+          className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} ${mirror ? '-scale-x-100' : ''}`}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
@@ -46,14 +43,11 @@ export function VideoPlayer({ stream, userName, muted = false, isLocal = false }
         </div>
       )}
 
-      {/* Floating Name Badge */}
       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-        <div className="glass-panel px-4 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md transition-transform duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-          <span className="text-white text-sm font-medium">
-            {userName} {isLocal && '(You)'}
-          </span>
-          {!hasAudio && (
-            <div className="bg-rose-500/20 p-1 rounded-md">
+        <div className="glass-panel px-4 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
+          <span className="text-white text-sm font-medium">{label}</span>
+          {!audioEnabled && (
+            <div className="bg-rose-500/20 p-1 rounded-md" aria-label="Microphone muted">
               <MicOff className="w-4 h-4 text-rose-400" />
             </div>
           )}

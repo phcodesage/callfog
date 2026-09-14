@@ -1,0 +1,26 @@
+# Rendered to livekit.yaml by deploy.sh (__PUBLIC_HOST__ is replaced).
+# API keys come from the LIVEKIT_KEYS env var set in docker-compose.yml.
+port: 7880
+bind_addresses:
+  - 127.0.0.1
+log_level: info
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+  enable_loopback_candidate: false
+
+turn:
+  enabled: true
+  domain: __PUBLIC_HOST__
+  udp_port: 3478
+  relay_range_start: 30000
+  relay_range_end: 40000
+
+room:
+  # Callfog is 1-on-1.
+  max_participants: 2
+  empty_timeout: 300
+  departure_timeout: 20
