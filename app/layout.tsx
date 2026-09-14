@@ -16,8 +16,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F6F9FA' },
-    { media: '(prefers-color-scheme: dark)', color: '#0F1415' },
+    { media: '(prefers-color-scheme: light)', color: '#F3EFE6' },
+    { media: '(prefers-color-scheme: dark)', color: '#121113' },
   ],
 };
 
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <InitColorSchemeScript attribute="class" defaultMode="system" />
+        <InitColorSchemeScript attribute="class" defaultMode="light" />
         <ThemeRegistry>{children}</ThemeRegistry>
       </body>
     </html>

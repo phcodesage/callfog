@@ -9,8 +9,7 @@ import { theme } from './theme';
 export function ThemeRegistry({ children }: { children: ReactNode }) {
   return (
     <AppRouterCacheProvider options={{ key: 'mui' }}>
-      {/* No storage: pages follow the system scheme, and the call screen switches to dark while open. */}
-      <ThemeProvider theme={theme} defaultMode="system" storageManager={null}>
+      <ThemeProvider theme={theme} defaultMode="light">
         <CssBaseline enableColorScheme />
         {children}
       </ThemeProvider>

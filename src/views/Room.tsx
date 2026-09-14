@@ -13,7 +13,7 @@ import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { useColorScheme, useTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
 import ChatBubbleRounded from '@mui/icons-material/ChatBubbleRounded';
@@ -92,17 +92,10 @@ export function Room({ roomId, userName, creatorKey, onLeave }: RoomProps) {
 
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'), { noSsr: true });
-  const { setMode } = useColorScheme();
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [readCount, setReadCount] = useState(0);
-
-  // Calls always use the dark scheme; the rest of the site follows the system.
-  useEffect(() => {
-    setMode('dark');
-    return () => setMode('system');
-  }, [setMode]);
 
   // Call timer, counted from when the other person is connected.
   const inCall = !!peer && isConnected;

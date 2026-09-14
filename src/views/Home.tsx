@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -16,9 +16,11 @@ import PersonOffOutlined from '@mui/icons-material/PersonOffOutlined';
 import ShuffleRounded from '@mui/icons-material/ShuffleRounded';
 import TimerOutlined from '@mui/icons-material/TimerOutlined';
 import VideoCallRounded from '@mui/icons-material/VideoCallRounded';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { generateRandomName } from '../utils/nameGenerator';
 import { isValidRoomId } from '../lib/callfogApi';
 import { loadUserName, takeCallEndedMessage } from '../lib/session';
+import { Landing } from './Landing';
 
 interface HomeProps {
   onCreateMeeting: (userName: string) => Promise<void>;
@@ -42,11 +44,13 @@ function extractRoomId(input: string): string {
 export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJoin }: HomeProps) {
   const [userName, setUserName] = useState('');
   const [joinInput, setJoinInput] = useState('');
+  const [showLanding, setShowLanding] = useState(!autoJoinRoomId);
   const [joinInputError, setJoinInputError] = useState('');
   const [showNamePrompt, setShowNamePrompt] = useState(!!autoJoinRoomId);
   const [action, setAction] = useState<'create' | 'join' | null>(autoJoinRoomId ? 'join' : null);
   const [isBusy, setIsBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
+  const joinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const callEndedMessage = takeCallEndedMessage();
@@ -58,6 +62,11 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
     setNotice(null);
     setAction('create');
     setShowNamePrompt(true);
+  };
+
+  const openCallConsole = (intent: 'create' | 'join') => {
+    setShowLanding(false);
+    if (intent === 'join') window.setTimeout(() => joinInputRef.current?.focus(), 0);
   };
 
   const handleJoinSubmit = (event: FormEvent) => {
@@ -99,19 +108,21 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
     }
   };
 
+  if (showLanding && !autoJoinRoomId) {
+    return <Landing onStartCall={() => openCallConsole('create')} onJoinCall={() => openCallConsole('join')} />;
+  }
+
   return (
-    <Box
-      component="main"
-      sx={{
-        minHeight: '100dvh',
-        bgcolor: 'background.default',
-        color: 'text.primary',
-        display: 'flex',
-        alignItems: { md: 'center' },
-        px: { xs: 2, sm: 4 },
-        py: { xs: 5, md: 8 },
-      }}
-    >
+    <Box component="main" className="paper-page" sx={{ minHeight: '100dvh', color: 'text.primary', display: 'flex', alignItems: { md: 'center' }, px: { xs: 2, sm: 4 }, py: { xs: 3, md: 5 } }}>
+      <Box sx={{ width: '100%', maxWidth: 1040, mx: 'auto' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 4, md: 6 } }}>
+          {!autoJoinRoomId ? (
+            <Button variant="text" onClick={() => setShowLanding(true)} sx={{ color: 'text.secondary', px: 0, '&:hover': { bgcolor: 'transparent', color: 'text.primary' } }}>
+              ← Back to Callfog
+            </Button>
+          ) : <Box />}
+          <ThemeToggle />
+        </Box>
       <Box
         sx={{
           width: '100%',
@@ -190,6 +201,7 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
               >
                 <TextField
                   fullWidth
+                  inputRef={joinInputRef}
                   label="Invite link or room code"
                   value={joinInput}
                   onChange={(event) => {
@@ -270,6 +282,7 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
             </Box>
           ))}
         </Box>
+      </Box>
       </Box>
     </Box>
   );
