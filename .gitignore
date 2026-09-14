@@ -33,3 +33,7 @@ dist-ssr
 # Server secrets (generated on the host by infra/deploy.sh)
 infra/.env
 infra/livekit.yaml
+
+# Static export and Cloudflare Wrangler state
+/out/
+.wrangler/

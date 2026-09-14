@@ -14,7 +14,7 @@ Callfog is an anonymous, quick 1-on-1 video and audio calling app. Pick any name
 ## Architecture
 
 ```
-Browser (Next.js on Vercel)
+Browser (static Next.js on Cloudflare Pages)
    │  POST /api/rooms, /api/token, /api/rooms/end
    ▼
 Caddy (HTTPS, automatic certificates)            ── EC2 ──
@@ -64,7 +64,7 @@ Tested on Amazon Linux 2023 (t3.micro works for a few concurrent 1-on-1 calls).
 
    ```bash
    SSH_KEY=~/path/to/key.pem \
-   ALLOWED_ORIGINS=https://callfog.vercel.app,http://localhost:3000 \
+   ALLOWED_ORIGINS=https://callfog.pages.dev,http://localhost:3000 \
    ./infra/deploy.sh ec2-user@<public-ip> <hostname>
    ```
 
@@ -82,15 +82,18 @@ sudo docker compose ps
 sudo docker compose logs -f livekit token caddy
 ```
 
-## Deploying the frontend (Vercel)
+## Deploying the frontend (Cloudflare Pages)
 
-Set one environment variable and deploy normally:
+Production builds are a static export (`out/`). Every room link is served by one placeholder page: `public/_redirects` rewrites `/room/*` to `/room/_`, and the page reads the room id from the URL. `public/_headers` sets security headers.
 
+```bash
+NEXT_PUBLIC_CALLFOG_API_URL=https://<hostname> npm run build
+npx wrangler pages deploy out --project-name callfog --branch main
 ```
-NEXT_PUBLIC_CALLFOG_API_URL=https://<hostname>
-```
 
-Make sure the Vercel domain is in the backend's `ALLOWED_ORIGINS`, then redeploy the backend.
+The API URL is baked in at build time, so rebuild after changing it. The Pages domain (e.g. `https://callfog.pages.dev`) must be in the backend's `ALLOWED_ORIGINS`; redeploy the backend after adding it.
+
+First-time setup: `npx wrangler login`, then `npx wrangler pages project create callfog --production-branch main`.
 
 ## Scripts
 

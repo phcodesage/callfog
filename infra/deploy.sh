@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Deploy the Callfog backend to an EC2 host (Amazon Linux 2023 with Docker + Compose).
 #
-#   SSH_KEY=~/path/key.pem ./infra/deploy.sh ec2-user@3.129.13.220 3-129-13-220.sslip.io
+#   SSH_KEY=~/path/key.pem ./infra/deploy.sh ec2-user@18.189.241.100 18-189-241-100.sslip.io
 #
 # Secrets are generated on the server on first deploy and never leave it.
 set -euo pipefail
 
 TARGET=${1:?usage: deploy.sh user@host public-hostname}
 PUBLIC_HOST=${2:?usage: deploy.sh user@host public-hostname}
-ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://callfog.vercel.app,http://localhost:3000}
+ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://callfog.pages.dev,http://localhost:3000}
 SSH_KEY=${SSH_KEY:-}
 REMOTE_DIR=/opt/callfog
 
