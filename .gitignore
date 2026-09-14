@@ -23,3 +23,6 @@ dist-ssr
 .env
 /.next
 .vercel
+
+# Local notes (not committed)
+/notebook/

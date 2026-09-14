@@ -84,9 +84,9 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId }: HomePro
             <Video className="w-10 h-10 text-indigo-400" />
           </div>
           <h1 className="text-5xl font-bold mb-3 text-gradient">
-            Meetra
+            Callfog
           </h1>
-          <p className="text-slate-400 font-medium">Simple, secure peer-to-peer video calls</p>
+          <p className="text-slate-400 font-medium">Anonymous, quick video & audio calls</p>
         </div>
 
         {!showNamePrompt ? (

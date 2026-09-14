@@ -1,6 +1,6 @@
-# Meetra - WebRTC Video Calling App
+# Callfog - Anonymous Quick Video & Audio Calls
 
-A simple, secure 1-on-1 video calling application built with React, TypeScript, and WebRTC.
+Callfog is an anonymous, quick 1-on-1 video and audio calling application built with React, TypeScript, and WebRTC.
 
 ## Features
 
