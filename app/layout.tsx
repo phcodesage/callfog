@@ -1,16 +1,10 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
-import { Roboto_Flex } from 'next/font/google';
 import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';
+// Self-hosted (bundled with the site) so visitors' browsers never contact Google Fonts.
+import '@fontsource-variable/google-sans-flex';
 import { ThemeRegistry } from '../src/theme/ThemeRegistry';
 import '../src/app/globals.css';
-
-const robotoFlex = Roboto_Flex({
-  subsets: ['latin'],
-  axes: ['wdth', 'opsz'],
-  display: 'swap',
-  variable: '--font-roboto-flex',
-});
 
 export const metadata: Metadata = {
   title: 'Callfog',
@@ -29,7 +23,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={robotoFlex.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body>
         <InitColorSchemeScript attribute="class" defaultMode="system" />
         <ThemeRegistry>{children}</ThemeRegistry>

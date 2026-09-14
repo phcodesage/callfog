@@ -128,12 +128,11 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
           <Typography
             component="h1"
             sx={{
-              fontSize: 'clamp(3.5rem, 14vw, 7rem)',
-              lineHeight: 0.9,
-              fontWeight: 800,
-              fontVariationSettings: "'wdth' 151, 'opsz' 144",
-              letterSpacing: '-0.04em',
-              ml: '-0.04em',
+              fontSize: 'clamp(3.5rem, 15vw, 7.5rem)',
+              lineHeight: 0.95,
+              fontWeight: 700,
+              letterSpacing: '-0.035em',
+              ml: '-0.03em',
               color: 'primary.main',
             }}
           >

@@ -65,7 +65,7 @@ export const theme = createTheme({
   },
   shape: { borderRadius: 12 },
   typography: {
-    fontFamily: 'var(--font-roboto-flex), Roboto, system-ui, -apple-system, "Segoe UI", sans-serif',
+    fontFamily: '"Google Sans Flex Variable", "Google Sans", Roboto, system-ui, -apple-system, "Segoe UI", sans-serif',
     button: { textTransform: 'none', fontWeight: 600, letterSpacing: '0.01em' },
     h5: { fontWeight: 500 },
     h6: { fontWeight: 500 },
