@@ -1,185 +1,172 @@
-import { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquare, Trash2 } from 'lucide-react';
-
-interface Message {
-  id: string;
-  sender: string;
-  text: string;
-  timestamp: number;
-  isLocal: boolean;
-}
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import CloseRounded from '@mui/icons-material/CloseRounded';
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import SendRounded from '@mui/icons-material/SendRounded';
+import type { ChatMessage } from '../hooks/useCallfog';
 
 interface ChatProps {
   onSendMessage: (message: string) => void;
-  messages: Message[];
+  messages: ChatMessage[];
   onTyping: (isTyping: boolean) => void;
   remoteTyping: boolean;
   remoteName: string;
   onClearChat: () => void;
-  isOpen: boolean;
+  onClose: () => void;
 }
 
-export function Chat({
-  onSendMessage,
-  messages,
-  onTyping,
-  remoteTyping,
-  remoteName,
-  onClearChat,
-  isOpen
-}: ChatProps) {
+const formatTime = (timestamp: number) =>
+  new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+export function Chat({ onSendMessage, messages, onTyping, remoteTyping, remoteName, onClearChat, onClose }: ChatProps) {
   const [inputValue, setInputValue] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const list = scrollRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messages, remoteTyping]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
+  useEffect(() => () => {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+  }, []);
 
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setInputValue(event.target.value);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    // Send typing indicator
-    if (e.target.value.length > 0) {
+    if (event.target.value.length > 0) {
       onTyping(true);
-
-      // Stop typing indicator after 2 seconds of inactivity
-      typingTimeoutRef.current = setTimeout(() => {
-        onTyping(false);
-      }, 2000);
+      typingTimeoutRef.current = setTimeout(() => onTyping(false), 2000);
     } else {
       onTyping(false);
     }
   };
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputValue.trim()) {
-      onSendMessage(inputValue.trim());
-      setInputValue('');
-      onTyping(false);
-      
-      // Clear typing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    }
+  const handleSend = (event: FormEvent) => {
+    event.preventDefault();
+    const text = inputValue.trim();
+    if (!text) return;
+    onSendMessage(text);
+    setInputValue('');
+    onTyping(false);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   };
-
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
-  };
-
-  const handleClearChat = () => {
-    if (window.confirm('Are you sure you want to clear all messages?')) {
-      onClearChat();
-    }
-  };
-
-  if (!isOpen) return null;
 
   return (
-    <div className="h-full glass rounded-[2.5rem] flex flex-col border-white/5 shadow-2xl overflow-hidden ml-4">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-white/5 bg-slate-900/40">
-        <h3 className="text-white font-bold flex items-center gap-3">
-          <div className="p-2 bg-indigo-500/20 rounded-xl">
-            <MessageSquare className="w-5 h-5 text-indigo-400" />
-          </div>
-          Room Chat
-        </h3>
-        <button
-          onClick={handleClearChat}
-          className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-          title="Clear all messages"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
-      </div>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 3, pr: 1, py: 1 }}>
+        <Typography variant="h6" component="h2" noWrap sx={{ flex: 1, fontSize: '1.125rem' }}>
+          Chat
+        </Typography>
+        <Tooltip title="Clear messages">
+          <span>
+            <IconButton aria-label="Clear messages" onClick={onClearChat} disabled={messages.length === 0}>
+              <DeleteOutlineRounded />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <IconButton aria-label="Close chat" onClick={onClose}>
+          <CloseRounded />
+        </IconButton>
+      </Box>
+      <Divider />
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+      <Box
+        ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 1 }}
+      >
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4">
-            <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-2">
-              <MessageSquare className="w-10 h-10 text-slate-600" />
-            </div>
-            <p className="font-medium text-slate-400">No messages yet</p>
-            <p className="text-sm">Start the conversation!</p>
-          </div>
+          <Box sx={{ m: 'auto', textAlign: 'center', px: 3 }}>
+            <Typography variant="body1">No messages yet</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Messages last only as long as this call.
+            </Typography>
+          </Box>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.isLocal ? 'justify-end' : 'justify-start'} animate-slide-in`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl p-4 shadow-lg ${
-                  message.isLocal
-                    ? 'bg-indigo-600/90 text-white rounded-tr-sm backdrop-blur-md border border-indigo-500/30'
-                    : 'glass-panel text-slate-200 rounded-tl-sm'
-                }`}
+          messages.map((message, index) => {
+            const startsRun = index === 0 || messages[index - 1].isLocal !== message.isLocal;
+            return (
+              <Box
+                key={message.id}
+                sx={{ alignSelf: message.isLocal ? 'flex-end' : 'flex-start', maxWidth: '82%', mt: startsRun && index > 0 ? 1 : 0 }}
               >
-                <div className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${message.isLocal ? 'text-indigo-200' : 'text-slate-400'}`}>
-                  {message.isLocal ? 'You' : message.sender}
-                </div>
-                <div className="break-words leading-relaxed text-sm">{message.text}</div>
-                <div className={`text-[10px] mt-2 text-right ${message.isLocal ? 'text-indigo-300' : 'text-slate-500'}`}>
+                {startsRun && !message.isLocal && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 0.25 }}>
+                    {message.sender}
+                  </Typography>
+                )}
+                <Box
+                  sx={{
+                    px: 1.75,
+                    py: 1,
+                    borderRadius: message.isLocal ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+                    bgcolor: message.isLocal ? 'primary.main' : 'surface.highest',
+                    color: message.isLocal ? 'primary.contrastText' : 'text.primary',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  <Typography variant="body2">{message.text}</Typography>
+                </Box>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', px: 1.5, mt: 0.25, textAlign: message.isLocal ? 'right' : 'left' }}
+                >
                   {formatTime(message.timestamp)}
-                </div>
-              </div>
-            </div>
-          ))
+                </Typography>
+              </Box>
+            );
+          })
         )}
-        
-        {/* Typing indicator */}
-        {remoteTyping && (
-          <div className="flex justify-start animate-slide-in">
-            <div className="glass-panel text-slate-400 rounded-2xl rounded-tl-sm p-4 text-sm flex items-center gap-2">
-              <span className="italic">{remoteName} is typing</span>
-              <span className="flex gap-1">
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-              </span>
-            </div>
-          </div>
-        )}
-        
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Input */}
-      <form onSubmit={handleSend} className="p-4 border-t border-white/5 bg-slate-900/40">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={handleInputChange}
-            placeholder="Type a message..."
-            className="flex-1 bg-slate-950/50 border border-white/10 text-white rounded-xl px-5 py-3.5 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 placeholder-slate-500 transition-all text-sm"
-            maxLength={500}
-          />
-          <button
-            type="submit"
-            disabled={!inputValue.trim()}
-            className="glass-button bg-indigo-600/80 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(79,70,229,0.2)]"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </div>
-      </form>
-    </div>
+        {remoteTyping && (
+          <Typography variant="caption" color="text.secondary" sx={{ px: 1.5 }}>
+            {remoteName} is typing…
+          </Typography>
+        )}
+      </Box>
+
+      <Box
+        component="form"
+        onSubmit={handleSend}
+        sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, pt: 1, pb: 'calc(12px + env(safe-area-inset-bottom))' }}
+      >
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="Message"
+          value={inputValue}
+          onChange={handleInputChange}
+          autoComplete="off"
+          slotProps={{
+            htmlInput: { maxLength: 500, 'aria-label': `Message ${remoteName}` },
+            input: { sx: { borderRadius: '999px', bgcolor: 'surface.main' } },
+          }}
+        />
+        <IconButton
+          type="submit"
+          aria-label="Send message"
+          disabled={!inputValue.trim()}
+          sx={{
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            '&:hover': { bgcolor: 'primary.main', filter: 'brightness(1.08)' },
+            '&.Mui-disabled': { bgcolor: 'surface.high', color: 'text.secondary' },
+          }}
+        >
+          <SendRounded />
+        </IconButton>
+      </Box>
+    </Box>
   );
 }

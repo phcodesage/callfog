@@ -1,8 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, AlertCircle, MessageSquare, Volume2 } from 'lucide-react';
+import Alert from '@mui/material/Alert';
+import AppBar from '@mui/material/AppBar';
+import Badge from '@mui/material/Badge';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
+import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
+import Toolbar from '@mui/material/Toolbar';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import { useColorScheme, useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
+import ChatBubbleRounded from '@mui/icons-material/ChatBubbleRounded';
+import ContentCopyRounded from '@mui/icons-material/ContentCopyRounded';
+import ErrorOutlineRounded from '@mui/icons-material/ErrorOutlineRounded';
+import LinkRounded from '@mui/icons-material/LinkRounded';
+import VolumeUpRounded from '@mui/icons-material/VolumeUpRounded';
 import { useCallfog } from '../hooks/useCallfog';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { MediaControls } from '../components/MediaControls';
+import { ControlButton } from '../components/ControlButton';
 import { Notification } from '../components/Notification';
 import { Chat } from '../components/Chat';
 
@@ -11,6 +33,25 @@ interface RoomProps {
   userName: string;
   creatorKey: string | null;
   onLeave: (message?: string) => void;
+}
+
+const pipSize = { width: { xs: 104, sm: 176, md: 232 }, aspectRatio: { xs: '3 / 4', sm: '16 / 9' } };
+
+const visuallyHidden = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+} as const;
+
+function formatDuration(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = String(total % 60).padStart(2, '0');
+  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }
 
 export function Room({ roomId, userName, creatorKey, onLeave }: RoomProps) {
@@ -49,12 +90,34 @@ export function Room({ roomId, userName, creatorKey, onLeave }: RoomProps) {
     clearChat,
   } = useCallfog({ roomId, userName, creatorKey });
 
-  const [notification, setNotification] = useState<{
-    message: string;
-    type: 'success' | 'error' | 'info';
-  } | null>(null);
+  const theme = useTheme();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'), { noSsr: true });
+  const { setMode } = useColorScheme();
+
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [readCount, setReadCount] = useState(0);
+
+  // Calls always use the dark scheme; the rest of the site follows the system.
+  useEffect(() => {
+    setMode('dark');
+    return () => setMode('system');
+  }, [setMode]);
+
+  // Call timer, counted from when the other person is connected.
+  const inCall = !!peer && isConnected;
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setCallStartedAt(inCall ? Date.now() : null);
+  }, [inCall]);
+  useEffect(() => {
+    if (!callStartedAt) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [callStartedAt]);
+  const elapsed = callStartedAt ? formatDuration(now - callStartedAt) : null;
 
   const closeNotification = useCallback(() => {
     setNotification(null);
@@ -75,18 +138,20 @@ export function Room({ roomId, userName, creatorKey, onLeave }: RoomProps) {
   }, [isChatOpen, remoteMessageCount]);
   const unreadCount = isChatOpen ? 0 : Math.max(0, remoteMessageCount - readCount);
 
-  const handleClearChat = () => {
-    clearChat();
-    setReadCount(0);
-  };
+  const inviteLink = `${window.location.origin}/room/${roomId}`;
 
   const copyInviteLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/room/${roomId}`);
-      setNotification({ message: 'Invite link copied to clipboard!', type: 'success' });
+      await navigator.clipboard.writeText(inviteLink);
+      setNotification({ message: 'Invite link copied', type: 'success' });
     } catch {
-      setNotification({ message: 'Failed to copy link', type: 'error' });
+      setNotification({ message: 'Could not copy the link. Select it and copy it manually.', type: 'error' });
     }
+  };
+
+  const handleClearChat = () => {
+    clearChat();
+    setReadCount(0);
   };
 
   const handleLeave = async () => {
@@ -95,185 +160,255 @@ export function Room({ roomId, userName, creatorKey, onLeave }: RoomProps) {
     onLeave();
   };
 
-  const localTile = (
+  const localTile = (compact: boolean) => (
     <VideoPlayer
       stream={localStream}
-      label={`${userName} (You)`}
+      label={compact ? 'You' : `${userName} (you)`}
       videoEnabled={isCameraEnabled}
       audioEnabled={isMicEnabled}
       mirror
+      compact={compact}
     />
   );
 
-  return (
-    <div className="min-h-screen flex flex-col pt-4 px-4 pb-28">
-      <header className="glass-panel rounded-3xl px-6 sm:px-8 py-5 mx-auto w-full max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 z-10">
-        <div className="min-w-0 text-center sm:text-left">
-          <h1 className="text-xl font-semibold text-white flex items-center justify-center sm:justify-start gap-2">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-            Room: {roomId}
-          </h1>
-          <p className="text-sm text-slate-400 mt-1" role="status">{connectionStatus}</p>
-        </div>
-        {!peer ? (
-          <button
-            onClick={copyInviteLink}
-            className="flex items-center gap-2 glass-button text-white font-medium py-2.5 px-5 rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
-          >
-            <Copy className="w-4 h-4" />
+  const chat = peer && (
+    <Chat
+      onSendMessage={sendMessage}
+      messages={messages}
+      onTyping={sendTypingIndicator}
+      remoteTyping={remoteTyping}
+      remoteName={peer.name}
+      onClearChat={handleClearChat}
+      onClose={() => setIsChatOpen(false)}
+    />
+  );
+
+  let stage;
+  if (joinError) {
+    stage = (
+      <Box sx={{ m: 'auto', px: 1 }}>
+        <Paper sx={{ p: { xs: 3, sm: 4 }, maxWidth: 440, borderRadius: '28px', bgcolor: 'surface.low' }}>
+          <ErrorOutlineRounded color="error" sx={{ fontSize: 40, mb: 2 }} />
+          <Typography variant="h5" component="h2" gutterBottom>
+            Couldn&apos;t join the call
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>
+            {joinError}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            <Button onClick={() => onLeave()}>Go home</Button>
+            <Button variant="contained" onClick={() => window.location.reload()}>
+              Try again
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
+    );
+  } else if (peer) {
+    const presenting = !!peer.screenStream;
+    stage = (
+      <Box sx={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0 }}>
+        <VideoPlayer
+          stream={peer.screenStream ?? peer.stream}
+          label={presenting ? `${peer.name} is presenting` : peer.name}
+          videoEnabled={presenting || peer.cameraEnabled}
+          audioEnabled={peer.micEnabled}
+          fit={presenting ? 'contain' : 'cover'}
+        />
+        <Box
+          sx={{
+            position: 'absolute',
+            right: { xs: 8, sm: 16 },
+            bottom: { xs: 8, sm: 16 },
+            width: pipSize.width,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+          }}
+        >
+          {presenting && (
+            <Box sx={{ aspectRatio: pipSize.aspectRatio, borderRadius: '16px', boxShadow: 6 }}>
+              <VideoPlayer stream={peer.stream} label={peer.name} videoEnabled={peer.cameraEnabled} audioEnabled={peer.micEnabled} compact />
+            </Box>
+          )}
+          <Box sx={{ aspectRatio: pipSize.aspectRatio, borderRadius: '16px', boxShadow: 6 }}>{localTile(true)}</Box>
+        </Box>
+      </Box>
+    );
+  } else {
+    stage = (
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) 360px' },
+          alignContent: { xs: 'start', md: 'center' },
+          alignItems: 'center',
+          gap: { xs: 2, md: 3 },
+          width: '100%',
+          maxWidth: 1200,
+          mx: 'auto',
+          pt: { xs: 1, md: 0 },
+        }}
+      >
+        <Box sx={{ width: '100%', aspectRatio: { xs: '4 / 3', sm: '16 / 9' } }}>{localTile(false)}</Box>
+        <Paper sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: '28px', bgcolor: 'surface.low' }}>
+          <Typography variant="h6" component="h2">
+            Waiting for someone to join
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2.5 }}>
+            Send this link to the person you want to talk to. Only two people can be in a call.
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            value={inviteLink}
+            onFocus={(event) => event.target.select()}
+            slotProps={{ htmlInput: { readOnly: true, 'aria-label': 'Invite link' } }}
+          />
+          <Button fullWidth variant="contained" startIcon={<ContentCopyRounded />} onClick={copyInviteLink} sx={{ mt: 1.5 }}>
             Copy invite link
-          </button>
-        ) : (
-          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium py-2 px-5 rounded-xl backdrop-blur-md">
-            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse-glow" />
-            <span>Call with {peer.name}</span>
-          </div>
-        )}
-      </header>
+          </Button>
+        </Paper>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ height: '100dvh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default', color: 'text.primary', overflow: 'hidden' }}>
+      <AppBar position="static" color="transparent" elevation={0} sx={{ pt: 'env(safe-area-inset-top)' }}>
+        <Toolbar sx={{ gap: 1.5, px: { xs: 2, sm: 3 } }}>
+          <Box
+            aria-hidden
+            sx={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, bgcolor: isConnected ? 'success.main' : 'warning.main' }}
+          />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="subtitle1" component="h1" noWrap sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+              {peer ? peer.name : 'Callfog'}
+            </Typography>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              noWrap
+              aria-hidden
+              sx={{ fontVariantNumeric: 'tabular-nums' }}
+            >
+              {elapsed ?? connectionStatus}
+            </Typography>
+            <Box role="status" sx={visuallyHidden}>
+              {connectionStatus}
+            </Box>
+          </Box>
+          {isRoomCreator && <Chip label="Host" size="small" color="secondary" variant="outlined" />}
+          <Tooltip title="Copy invite link">
+            <IconButton aria-label="Copy invite link" onClick={copyInviteLink}>
+              <LinkRounded />
+            </IconButton>
+          </Tooltip>
+        </Toolbar>
+      </AppBar>
 
       {audioBlocked && peer && (
-        <button
-          onClick={startAudio}
-          className="mx-auto mt-4 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-5 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+        <Alert
+          severity="info"
+          icon={<VolumeUpRounded />}
+          action={
+            <Button color="inherit" size="small" onClick={startAudio}>
+              Turn on sound
+            </Button>
+          }
+          sx={{ mx: { xs: 1, sm: 2 }, mb: 1 }}
         >
-          <Volume2 className="w-4 h-4" />
-          Tap to hear {peer.name}
-        </button>
+          Your browser paused {peer.name}&apos;s audio.
+        </Alert>
       )}
 
-      <main className="flex-1 flex overflow-hidden mt-2 sm:mt-6 z-0 min-h-0">
-        <div className="flex-1 p-2 md:p-6 flex items-center justify-center overflow-hidden relative">
-          <div className="max-w-7xl w-full h-full relative flex items-center justify-center">
-            {joinError ? (
-              <div className="max-w-md mx-auto glass-panel border-rose-500/20 rounded-3xl p-8 text-center">
-                <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <AlertCircle className="w-8 h-8 text-rose-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Couldn&apos;t join the call</h3>
-                <p className="text-slate-300 mb-8">{joinError}</p>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => onLeave()}
-                    className="flex-1 glass-button text-white font-medium py-3 px-6 rounded-xl"
-                  >
-                    Home
-                  </button>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 px-6 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.3)]"
-                  >
-                    Try again
-                  </button>
-                </div>
-              </div>
-            ) : peer ? (
-              <div className="flex flex-col lg:grid lg:grid-cols-[1fr_300px] gap-6 w-full h-full">
-                <div className="w-full h-full lg:h-[calc(100vh-280px)]">
-                  <VideoPlayer
-                    stream={peer.screenStream ?? peer.stream}
-                    label={peer.screenStream ? `${peer.name} (screen)` : peer.name}
-                    videoEnabled={!!peer.screenStream || peer.cameraEnabled}
-                    audioEnabled={peer.micEnabled}
-                    fit={peer.screenStream ? 'contain' : 'cover'}
-                  />
-                </div>
-                <div className="flex flex-row lg:flex-col gap-4 lg:justify-end">
-                  {peer.screenStream && (
-                    <div className="w-1/2 lg:w-full">
-                      <VideoPlayer
-                        stream={peer.stream}
-                        label={peer.name}
-                        videoEnabled={peer.cameraEnabled}
-                        audioEnabled={peer.micEnabled}
-                      />
-                    </div>
-                  )}
-                  <div className={peer.screenStream ? 'w-1/2 lg:w-full' : 'w-48 lg:w-full ml-auto'}>
-                    {localTile}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center p-4">
-                <div className="w-full max-w-3xl max-h-[70vh] aspect-video">
-                  {localTile}
-                </div>
-              </div>
-            )}
+      <Box component="main" sx={{ flex: 1, minHeight: 0, display: 'flex', gap: 2, px: { xs: 1, sm: 2 } }}>
+        <Box sx={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, display: 'flex' }}>
+          {stage}
+          {!isConnected && !joinError && (
+            <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', bgcolor: 'background.default' }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <CircularProgress />
+                <Typography color="text.secondary" sx={{ mt: 2 }}>
+                  {connectionStatus}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </Box>
 
-            {!isConnected && !joinError && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="inline-flex items-center gap-3 glass-panel text-white px-6 py-4 rounded-2xl">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-400" />
-                  <span className="font-medium">{connectionStatus}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {peer && isChatOpen && (
-          <div className="fixed inset-x-2 top-4 bottom-28 z-40 sm:static sm:w-96 sm:flex-shrink-0">
-            <Chat
-              onSendMessage={sendMessage}
-              messages={messages}
-              onTyping={sendTypingIndicator}
-              remoteTyping={remoteTyping}
-              remoteName={peer.name}
-              onClearChat={handleClearChat}
-              isOpen={isChatOpen}
-            />
-          </div>
+        {isDesktop && isChatOpen && chat && (
+          <Paper sx={{ width: 360, flexShrink: 0, borderRadius: '28px', bgcolor: 'surface.low', overflow: 'hidden' }}>{chat}</Paper>
         )}
-      </main>
+      </Box>
 
-      {isConnected && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="glass-panel px-4 sm:px-6 py-3 sm:py-4 rounded-full flex items-center justify-center gap-2 sm:gap-4 shadow-2xl border-white/10 backdrop-blur-xl">
-            <MediaControls
-              onToggleAudio={toggleAudio}
-              onToggleVideo={toggleVideo}
-              onToggleScreenShare={canScreenShare ? toggleScreenShare : undefined}
-              onLeave={handleLeave}
-              isAudioEnabled={isMicEnabled}
-              isVideoEnabled={isCameraEnabled}
-              isAudioOnly={isAudioOnly}
-              isScreenSharing={isScreenSharing}
-              isRoomCreator={isRoomCreator}
-              onAudioInputChange={switchAudioDevice}
-              onAudioOutputChange={setAudioOutput}
-              onVideoInputChange={switchVideoDevice}
-              audioInputDeviceId={audioInputDeviceId}
-              audioOutputDeviceId={audioOutputDeviceId}
-              videoInputDeviceId={videoInputDeviceId}
-            />
-
+      {isConnected ? (
+        <Box
+          component="nav"
+          aria-label="Call controls"
+          sx={{ display: 'flex', justifyContent: 'center', px: 1, pt: 1.5, pb: 'calc(12px + env(safe-area-inset-bottom))' }}
+        >
+          <MediaControls
+            onToggleAudio={toggleAudio}
+            onToggleVideo={toggleVideo}
+            onToggleScreenShare={canScreenShare ? toggleScreenShare : undefined}
+            onLeave={handleLeave}
+            isAudioEnabled={isMicEnabled}
+            isVideoEnabled={isCameraEnabled}
+            isAudioOnly={isAudioOnly}
+            isScreenSharing={isScreenSharing}
+            isRoomCreator={isRoomCreator}
+            onAudioInputChange={switchAudioDevice}
+            onAudioOutputChange={setAudioOutput}
+            onVideoInputChange={switchVideoDevice}
+            audioInputDeviceId={audioInputDeviceId}
+            audioOutputDeviceId={audioOutputDeviceId}
+            videoInputDeviceId={videoInputDeviceId}
+          >
             {peer && (
-              <button
+              <ControlButton
+                label={isChatOpen ? 'Close chat' : 'Open chat'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
-                className="glass-button text-white p-3 sm:p-4 rounded-full transition-all duration-300 hover:scale-110 active:scale-95 shadow-xl relative"
-                aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
-                title="Toggle chat"
+                tone={isChatOpen ? 'active' : 'neutral'}
+                pressed={isChatOpen}
               >
-                <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-slate-900 shadow-[0_0_10px_rgba(244,63,94,0.5)]">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
+                <Badge badgeContent={unreadCount} color="error" max={9}>
+                  {isChatOpen ? <ChatBubbleRounded /> : <ChatBubbleOutlineRounded />}
+                </Badge>
+              </ControlButton>
             )}
-          </div>
-        </div>
+          </MediaControls>
+        </Box>
+      ) : (
+        <Box sx={{ height: 'calc(12px + env(safe-area-inset-bottom))' }} />
+      )}
+
+      {!isDesktop && (
+        <Drawer
+          anchor="bottom"
+          open={!!chat && isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          slotProps={{
+            paper: {
+              sx: { height: '85dvh', borderTopLeftRadius: '28px', borderTopRightRadius: '28px', bgcolor: 'surface.low' },
+            },
+          }}
+        >
+          {chat}
+        </Drawer>
       )}
 
       {notification && (
         <Notification
+          key={`${notification.type}:${notification.message}`}
           message={notification.message}
           type={notification.type}
           onClose={closeNotification}
         />
       )}
-    </div>
+    </Box>
   );
 }

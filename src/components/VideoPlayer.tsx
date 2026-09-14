@@ -1,5 +1,8 @@
 import { useCallback } from 'react';
-import { User, MicOff } from 'lucide-react';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import MicOffRounded from '@mui/icons-material/MicOffRounded';
 
 interface VideoPlayerProps {
   stream: MediaStream | null;
@@ -8,11 +11,20 @@ interface VideoPlayerProps {
   audioEnabled: boolean;
   fit?: 'cover' | 'contain';
   mirror?: boolean;
+  compact?: boolean;
 }
 
 // Video only: remote audio is played through elements attached by useCallfog,
 // so every <video> here is muted.
-export function VideoPlayer({ stream, label, videoEnabled, audioEnabled, fit = 'cover', mirror = false }: VideoPlayerProps) {
+export function VideoPlayer({
+  stream,
+  label,
+  videoEnabled,
+  audioEnabled,
+  fit = 'cover',
+  mirror = false,
+  compact = false,
+}: VideoPlayerProps) {
   // A callback ref re-attaches the stream whenever the <video> remounts or the stream changes.
   const attachStream = useCallback((video: HTMLVideoElement | null) => {
     if (video && video.srcObject !== stream) {
@@ -21,38 +33,77 @@ export function VideoPlayer({ stream, label, videoEnabled, audioEnabled, fit = '
   }, [stream]);
 
   const showVideo = videoEnabled && !!stream;
+  const initial = label.trim().charAt(0).toUpperCase() || '?';
 
   return (
-    <div className="relative w-full h-full glass rounded-3xl overflow-hidden aspect-video border-white/5 shadow-2xl group">
+    <Box
+      sx={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        bgcolor: 'surface.main',
+        borderRadius: compact ? '16px' : { xs: '20px', sm: '28px' },
+      }}
+    >
       {showVideo ? (
         <video
           ref={attachStream}
           autoPlay
           playsInline
           muted
-          className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} ${mirror ? '-scale-x-100' : ''}`}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: fit,
+            transform: mirror ? 'scaleX(-1)' : undefined,
+            background: '#000',
+          }}
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-          <div className="text-center animate-slide-in">
-            <div className="inline-flex items-center justify-center w-24 h-24 bg-indigo-500/20 rounded-full mb-4 shadow-[0_0_30px_rgba(79,70,229,0.2)] border border-indigo-500/30">
-              <User className="w-12 h-12 text-indigo-400" />
-            </div>
-            <p className="text-white font-medium">Camera off</p>
-          </div>
-        </div>
+        <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
+          <Avatar
+            sx={{
+              width: compact ? 48 : { xs: 88, sm: 128 },
+              height: compact ? 48 : { xs: 88, sm: 128 },
+              fontSize: compact ? '1.25rem' : { xs: '2.25rem', sm: '3.25rem' },
+              fontWeight: 600,
+              bgcolor: 'tonal.main',
+              color: 'tonal.contrastText',
+            }}
+          >
+            {initial}
+          </Avatar>
+        </Box>
       )}
 
-      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-        <div className="glass-panel px-4 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
-          <span className="text-white text-sm font-medium">{label}</span>
-          {!audioEnabled && (
-            <div className="bg-rose-500/20 p-1 rounded-md" aria-label="Microphone muted">
-              <MicOff className="w-4 h-4 text-rose-400" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      <Box
+        sx={{
+          position: 'absolute',
+          left: compact ? 6 : 12,
+          bottom: compact ? 6 : 12,
+          maxWidth: compact ? 'calc(100% - 12px)' : 'calc(100% - 24px)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          px: compact ? 1 : 1.5,
+          py: 0.5,
+          borderRadius: '999px',
+          bgcolor: 'rgba(0, 0, 0, 0.62)',
+          color: '#FFFFFF',
+        }}
+      >
+        {!audioEnabled && (
+          <Box role="img" aria-label="Microphone muted" sx={{ display: 'flex' }}>
+            <MicOffRounded sx={{ fontSize: compact ? 14 : 18 }} />
+          </Box>
+        )}
+        <Typography variant={compact ? 'caption' : 'body2'} noWrap sx={{ fontWeight: 500 }}>
+          {label}
+        </Typography>
+      </Box>
+    </Box>
   );
 }

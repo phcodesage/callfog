@@ -1,6 +1,20 @@
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { Mic, MicOff, Video, VideoOff, Phone, MonitorUp, Monitor } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import Tooltip from '@mui/material/Tooltip';
+import CallEndRounded from '@mui/icons-material/CallEndRounded';
+import MicOffRounded from '@mui/icons-material/MicOffRounded';
+import MicRounded from '@mui/icons-material/MicRounded';
+import PresentToAllRounded from '@mui/icons-material/PresentToAllRounded';
+import CancelPresentationRounded from '@mui/icons-material/CancelPresentationRounded';
+import VideocamOffRounded from '@mui/icons-material/VideocamOffRounded';
+import VideocamRounded from '@mui/icons-material/VideocamRounded';
+import { ControlButton } from './ControlButton';
 import { DeviceSelector } from './DeviceSelector';
 
 interface MediaControlsProps {
@@ -13,18 +27,15 @@ interface MediaControlsProps {
   isAudioOnly?: boolean;
   isScreenSharing?: boolean;
   isRoomCreator?: boolean;
-  onAudioInputChange?: (deviceId: string) => void;
-  onAudioOutputChange?: (deviceId: string) => void;
-  onVideoInputChange?: (deviceId: string) => void;
+  onAudioInputChange: (deviceId: string) => void;
+  onAudioOutputChange: (deviceId: string) => void;
+  onVideoInputChange: (deviceId: string) => void;
   audioInputDeviceId?: string;
   audioOutputDeviceId?: string;
   videoInputDeviceId?: string;
+  /** Extra controls (e.g. chat) placed before the end-call button. */
+  children?: ReactNode;
 }
-
-const iconClass = 'w-5 h-5 sm:w-6 sm:h-6';
-const buttonBase = 'p-3 sm:p-4 rounded-full transition-all duration-300 hover:scale-110 active:scale-95 shadow-xl border';
-const idleButton = 'glass-button text-indigo-100 border-white/10';
-const offButton = 'bg-rose-500 hover:bg-rose-600 text-white border-rose-400/50 shadow-[0_0_15px_rgba(244,63,94,0.4)]';
 
 export function MediaControls({
   onToggleAudio,
@@ -42,128 +53,94 @@ export function MediaControls({
   audioInputDeviceId,
   audioOutputDeviceId,
   videoInputDeviceId,
+  children,
 }: MediaControlsProps) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!showLeaveConfirm) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowLeaveConfirm(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showLeaveConfirm]);
 
   const micLabel = isAudioEnabled ? 'Mute microphone' : 'Unmute microphone';
-  const cameraLabel = isAudioOnly
+  const cameraLabel = isAudioOnly && !isVideoEnabled
     ? 'Try turning on camera'
     : isVideoEnabled
     ? 'Turn off camera'
     : 'Turn on camera';
-  const shareLabel = isScreenSharing ? 'Stop sharing screen' : 'Share your screen';
+  const shareLabel = isScreenSharing ? 'Stop presenting' : 'Present your screen';
   const leaveLabel = isRoomCreator ? 'End call for everyone' : 'Leave call';
 
   return (
     <>
-      <div className="flex items-center justify-center gap-2 sm:gap-4">
-        {onAudioInputChange && onAudioOutputChange && onVideoInputChange && (
-          <DeviceSelector
-            onAudioInputChange={onAudioInputChange}
-            onAudioOutputChange={onAudioOutputChange}
-            onVideoInputChange={onVideoInputChange}
-            currentAudioInputId={audioInputDeviceId}
-            currentAudioOutputId={audioOutputDeviceId}
-            currentVideoInputId={videoInputDeviceId}
-          />
-        )}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: { xs: 0.75, sm: 1.5 } }}>
+        <DeviceSelector
+          onAudioInputChange={onAudioInputChange}
+          onAudioOutputChange={onAudioOutputChange}
+          onVideoInputChange={onVideoInputChange}
+          currentAudioInputId={audioInputDeviceId}
+          currentAudioOutputId={audioOutputDeviceId}
+          currentVideoInputId={videoInputDeviceId}
+        />
 
-        <button
-          onClick={onToggleAudio}
-          className={`${buttonBase} ${isAudioEnabled ? idleButton : offButton}`}
-          title={micLabel}
-          aria-label={micLabel}
-          aria-pressed={!isAudioEnabled}
-        >
-          {isAudioEnabled ? <Mic className={iconClass} /> : <MicOff className={iconClass} />}
-        </button>
+        <ControlButton label={micLabel} onClick={onToggleAudio} tone={isAudioEnabled ? 'neutral' : 'off'} pressed={!isAudioEnabled}>
+          {isAudioEnabled ? <MicRounded /> : <MicOffRounded />}
+        </ControlButton>
 
-        <button
-          onClick={onToggleVideo}
-          className={`${buttonBase} ${isVideoEnabled ? idleButton : offButton}`}
-          title={cameraLabel}
-          aria-label={cameraLabel}
-          aria-pressed={!isVideoEnabled}
-        >
-          {isVideoEnabled ? <Video className={iconClass} /> : <VideoOff className={iconClass} />}
-        </button>
+        <ControlButton label={cameraLabel} onClick={onToggleVideo} tone={isVideoEnabled ? 'neutral' : 'off'} pressed={!isVideoEnabled}>
+          {isVideoEnabled ? <VideocamRounded /> : <VideocamOffRounded />}
+        </ControlButton>
 
         {onToggleScreenShare && (
-          <button
-            onClick={onToggleScreenShare}
-            className={`${buttonBase} ${
-              isScreenSharing
-                ? 'bg-indigo-500 hover:bg-indigo-600 text-white border-indigo-400/50 shadow-[0_0_15px_rgba(99,102,241,0.4)]'
-                : idleButton
-            }`}
-            title={shareLabel}
-            aria-label={shareLabel}
-            aria-pressed={isScreenSharing}
-          >
-            {isScreenSharing ? <Monitor className={iconClass} /> : <MonitorUp className={iconClass} />}
-          </button>
+          <ControlButton label={shareLabel} onClick={onToggleScreenShare} tone={isScreenSharing ? 'active' : 'neutral'} pressed={isScreenSharing}>
+            {isScreenSharing ? <CancelPresentationRounded /> : <PresentToAllRounded />}
+          </ControlButton>
         )}
 
-        <button
-          onClick={() => setShowLeaveConfirm(true)}
-          className="p-3 sm:p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white transition-all duration-300 hover:scale-110 active:scale-95 shadow-[0_0_15px_rgba(225,29,72,0.5)] border border-rose-500/50 sm:ml-2"
-          title={leaveLabel}
-          aria-label={leaveLabel}
-        >
-          <Phone className={`${iconClass} rotate-[135deg]`} />
-        </button>
-      </div>
+        {children}
 
-      {mounted && showLeaveConfirm && createPortal(
-        <div className="fixed inset-0 flex items-center justify-center z-[100] p-4" role="dialog" aria-modal="true" aria-labelledby="leave-dialog-title">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowLeaveConfirm(false)}></div>
+        <Tooltip title={leaveLabel}>
+          <Button
+            aria-label={leaveLabel}
+            onClick={() => setShowLeaveConfirm(true)}
+            sx={{
+              minWidth: { xs: 60, sm: 84 },
+              height: { xs: 44, sm: 52 },
+              ml: { xs: 0.25, sm: 1 },
+              px: 0,
+              bgcolor: 'danger.main',
+              color: 'danger.contrastText',
+              '&:hover': { bgcolor: 'danger.main', filter: 'brightness(1.08)' },
+            }}
+          >
+            <CallEndRounded />
+          </Button>
+        </Tooltip>
+      </Box>
 
-          <div className="relative glass rounded-[2rem] p-8 max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] border-white/10 animate-slide-in">
-            <div className="w-16 h-16 bg-rose-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Phone className="w-8 h-8 text-rose-400 rotate-[135deg]" />
-            </div>
-
-            <h3 id="leave-dialog-title" className="text-2xl font-bold text-white mb-3 text-center">
-              {isRoomCreator ? 'End the call?' : 'Leave the call?'}
-            </h3>
-            <p className="text-slate-300 mb-8 text-center">
-              {isRoomCreator
-                ? 'You started this call. Ending it disconnects everyone and closes the room.'
-                : 'Are you sure you want to leave this call?'}
-            </p>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowLeaveConfirm(false)}
-                autoFocus
-                className="flex-1 glass-button text-white font-medium py-3.5 px-6 rounded-xl transition-all hover:scale-[1.02] active:scale-95"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onLeave}
-                className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-medium py-3.5 px-6 rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_15px_rgba(225,29,72,0.4)]"
-              >
-                {isRoomCreator ? 'End call' : 'Leave'}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <Dialog
+        open={showLeaveConfirm}
+        onClose={() => setShowLeaveConfirm(false)}
+        aria-labelledby="leave-dialog-title"
+        slotProps={{ paper: { sx: { bgcolor: 'surface.high', maxWidth: 380, m: 2 } } }}
+      >
+        <DialogTitle id="leave-dialog-title">
+          {isRoomCreator ? 'End the call?' : 'Leave the call?'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {isRoomCreator
+              ? 'You started this call. Ending it disconnects everyone and closes the room.'
+              : "You can rejoin with the same link while the other person is still here."}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setShowLeaveConfirm(false)} autoFocus>
+            Cancel
+          </Button>
+          <Button
+            onClick={onLeave}
+            sx={{ bgcolor: 'danger.main', color: 'danger.contrastText', '&:hover': { bgcolor: 'danger.main', filter: 'brightness(1.08)' } }}
+          >
+            {isRoomCreator ? 'End call' : 'Leave'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

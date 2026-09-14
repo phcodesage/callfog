@@ -1,5 +1,21 @@
-import { useState, useEffect } from 'react';
-import { Video, Plus, LogIn, Shuffle } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
+import LockOutlined from '@mui/icons-material/LockOutlined';
+import PersonOffOutlined from '@mui/icons-material/PersonOffOutlined';
+import ShuffleRounded from '@mui/icons-material/ShuffleRounded';
+import TimerOutlined from '@mui/icons-material/TimerOutlined';
+import VideoCallRounded from '@mui/icons-material/VideoCallRounded';
 import { generateRandomName } from '../utils/nameGenerator';
 import { isValidRoomId } from '../lib/callfogApi';
 import { loadUserName, takeCallEndedMessage } from '../lib/session';
@@ -11,6 +27,12 @@ interface HomeProps {
   onCancelJoin?: () => void;
 }
 
+const facts = [
+  { Icon: PersonOffOutlined, text: 'No sign-up. Use any name you like.' },
+  { Icon: LockOutlined, text: 'Audio, video and chat are encrypted in transit.' },
+  { Icon: TimerOutlined, text: 'The room closes a few minutes after you both leave.' },
+];
+
 function extractRoomId(input: string): string {
   const trimmed = input.trim();
   const fromLink = trimmed.includes('/room/') ? trimmed.split('/room/')[1].split(/[?#/]/)[0] : trimmed;
@@ -20,34 +42,32 @@ function extractRoomId(input: string): string {
 export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJoin }: HomeProps) {
   const [userName, setUserName] = useState('');
   const [joinInput, setJoinInput] = useState('');
+  const [joinInputError, setJoinInputError] = useState('');
   const [showNamePrompt, setShowNamePrompt] = useState(!!autoJoinRoomId);
   const [action, setAction] = useState<'create' | 'join' | null>(autoJoinRoomId ? 'join' : null);
   const [isBusy, setIsBusy] = useState(false);
-
-  const [notification, setNotification] = useState<{
-    message: string;
-    type: 'success' | 'error' | 'info';
-  } | null>(null);
+  const [notice, setNotice] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
 
   useEffect(() => {
     const callEndedMessage = takeCallEndedMessage();
-    if (callEndedMessage) setNotification({ message: callEndedMessage, type: 'info' });
+    if (callEndedMessage) setNotice({ message: callEndedMessage, type: 'info' });
     setUserName((current) => current || loadUserName() || '');
   }, []);
 
   const handleCreateClick = () => {
-    setNotification(null);
+    setNotice(null);
     setAction('create');
     setShowNamePrompt(true);
   };
 
-  const handleJoinClick = () => {
+  const handleJoinSubmit = (event: FormEvent) => {
+    event.preventDefault();
     if (!joinInput.trim()) return;
     if (!isValidRoomId(extractRoomId(joinInput))) {
-      setNotification({ message: "That doesn't look like a Callfog link or room code", type: 'error' });
+      setJoinInputError('Paste a Callfog invite link or a room code');
       return;
     }
-    setNotification(null);
+    setNotice(null);
     setAction('join');
     setShowNamePrompt(true);
   };
@@ -61,7 +81,8 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
     setAction(null);
   };
 
-  const handleSubmitName = async () => {
+  const handleNameSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     const name = userName.trim();
     if (!name || isBusy) return;
 
@@ -70,7 +91,7 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
       try {
         await onCreateMeeting(name);
       } catch (err) {
-        setNotification({ message: err instanceof Error ? err.message : 'Could not create a call', type: 'error' });
+        setNotice({ message: err instanceof Error ? err.message : 'Could not start a call. Try again.', type: 'error' });
         setIsBusy(false);
       }
     } else if (action === 'join') {
@@ -79,133 +100,178 @@ export function Home({ onCreateMeeting, onJoinMeeting, autoJoinRoomId, onCancelJ
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-8 relative z-10">
-        <div className="text-center animate-slide-in">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-500/20 rounded-3xl mb-6 shadow-2xl border border-indigo-500/30 animate-pulse-glow">
-            <Video className="w-10 h-10 text-indigo-400" />
-          </div>
-          <h1 className="text-5xl font-bold mb-3 text-gradient">
+    <Box
+      component="main"
+      sx={{
+        minHeight: '100dvh',
+        bgcolor: 'background.default',
+        color: 'text.primary',
+        display: 'flex',
+        alignItems: { md: 'center' },
+        px: { xs: 2, sm: 4 },
+        py: { xs: 5, md: 8 },
+      }}
+    >
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: 1040,
+          mx: 'auto',
+          display: 'grid',
+          columnGap: 8,
+          rowGap: { xs: 4, md: 5 },
+          gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) 420px' },
+          gridTemplateAreas: { xs: '"title" "card" "facts"', md: '"title card" "facts card"' },
+        }}
+      >
+        <Box sx={{ gridArea: 'title', alignSelf: 'end' }}>
+          <Typography
+            component="h1"
+            sx={{
+              fontSize: 'clamp(3.5rem, 14vw, 7rem)',
+              lineHeight: 0.9,
+              fontWeight: 800,
+              fontVariationSettings: "'wdth' 151, 'opsz' 144",
+              letterSpacing: '-0.04em',
+              ml: '-0.04em',
+              color: 'primary.main',
+            }}
+          >
             Callfog
-          </h1>
-          <p className="text-slate-400 font-medium">Anonymous, quick video &amp; audio calls</p>
-        </div>
+          </Typography>
+          <Typography
+            component="p"
+            sx={{ mt: { xs: 1.5, md: 2.5 }, fontSize: { xs: '1.25rem', sm: '1.5rem' }, lineHeight: 1.35, maxWidth: '24ch', textWrap: 'balance', color: 'text.secondary' }}
+          >
+            Private video and audio calls with a link. Nothing to install.
+          </Typography>
+        </Box>
 
-        {!showNamePrompt ? (
-          <div className="glass rounded-3xl p-8 space-y-6 animate-slide-in">
-            <button
-              onClick={handleCreateClick}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-4 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 transform hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(79,70,229,0.4)] group"
-            >
-              <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-              Start a call
-            </button>
+        <Paper
+          component="section"
+          aria-label={showNamePrompt ? 'Choose a name' : 'Start or join a call'}
+          sx={{
+            gridArea: 'card',
+            alignSelf: 'center',
+            p: { xs: 3, sm: 4 },
+            borderRadius: '28px',
+            bgcolor: 'surface.low',
+            border: 1,
+            borderColor: 'divider',
+          }}
+        >
+          {notice && (
+            <Alert severity={notice.type} onClose={() => setNotice(null)} sx={{ mb: 3 }}>
+              {notice.message}
+            </Alert>
+          )}
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-slate-900/40 text-slate-400 rounded-full border border-white/5 backdrop-blur-sm">or</span>
-              </div>
-            </div>
+          {!showNamePrompt ? (
+            <>
+              <Typography variant="h6" component="h2">
+                Start a call
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2.5 }}>
+                You&apos;ll get a link to send to one other person.
+              </Typography>
+              <Button fullWidth size="large" variant="contained" startIcon={<VideoCallRounded />} onClick={handleCreateClick}>
+                Start a call
+              </Button>
 
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Enter room code or invite link"
-                aria-label="Room code or invite link"
-                value={joinInput}
-                onChange={(e) => setJoinInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleJoinClick()}
-                className="w-full px-5 py-4 bg-slate-950/50 border border-white/10 text-white placeholder-slate-500 rounded-2xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all duration-300"
-              />
-              <button
-                onClick={handleJoinClick}
-                disabled={!joinInput.trim()}
-                className="w-full glass-button text-white font-medium py-4 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-95 group"
-              >
-                <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300 text-indigo-400" />
+              <Divider sx={{ my: 3.5, color: 'text.secondary', typography: 'body2' }}>or</Divider>
+
+              <Typography variant="h6" component="h2">
                 Join a call
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="glass rounded-3xl p-8 space-y-6 animate-slide-in">
-            <div>
-              <h2 className="text-2xl font-semibold text-white mb-2">
-                {autoJoinRoomId ? 'Join this call' : 'Pick a name'}
-              </h2>
-              <p className="text-slate-400">
-                {autoJoinRoomId
-                  ? `Enter any name to join room ${autoJoinRoomId}`
-                  : 'Any name works. No account, nothing saved.'}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Your name"
-                  aria-label="Your name"
-                  value={userName}
-                  maxLength={40}
-                  onChange={(e) => setUserName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSubmitName()}
-                  autoFocus
-                  className="w-full px-5 py-4 pr-12 bg-slate-950/50 border border-white/10 text-white rounded-2xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all duration-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => setUserName(generateRandomName())}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-xl transition-all duration-200 group"
-                  title="Generate random name"
-                  aria-label="Generate random name"
-                >
-                  <Shuffle className="w-5 h-5 group-hover:rotate-180 transition-transform duration-300" />
-                </button>
-              </div>
-              <p className="text-sm text-slate-500 text-center">
-                Click <Shuffle className="w-4 h-4 inline text-slate-400" /> for a random name
-              </p>
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={handleBack}
-                className="flex-1 glass-button text-white font-medium py-4 px-6 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95"
+              </Typography>
+              <Box
+                component="form"
+                onSubmit={handleJoinSubmit}
+                noValidate
+                sx={{ mt: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'flex-start' }, gap: 1.5 }}
               >
-                Back
-              </button>
-              <button
-                onClick={handleSubmitName}
+                <TextField
+                  fullWidth
+                  label="Invite link or room code"
+                  value={joinInput}
+                  onChange={(event) => {
+                    setJoinInput(event.target.value);
+                    setJoinInputError('');
+                  }}
+                  error={!!joinInputError}
+                  helperText={joinInputError || undefined}
+                  autoComplete="off"
+                />
+                <Button type="submit" variant="outlined" size="large" disabled={!joinInput.trim()} sx={{ flexShrink: 0, height: 56 }}>
+                  Join
+                </Button>
+              </Box>
+            </>
+          ) : (
+            <Box component="form" onSubmit={handleNameSubmit} noValidate>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: -1.5, mb: 0.5 }}>
+                <IconButton aria-label="Back" onClick={handleBack}>
+                  <ArrowBackRounded />
+                </IconButton>
+                <Typography variant="h6" component="h2">
+                  {autoJoinRoomId ? 'Join the call' : 'Choose a name'}
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                The other person will see this name. It isn&apos;t saved anywhere.
+              </Typography>
+
+              <TextField
+                fullWidth
+                autoFocus
+                label="Your name"
+                value={userName}
+                onChange={(event) => setUserName(event.target.value)}
+                autoComplete="nickname"
+                slotProps={{
+                  htmlInput: { maxLength: 40 },
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title="Suggest a name">
+                          <IconButton aria-label="Suggest a name" edge="end" onClick={() => setUserName(generateRandomName())}>
+                            <ShuffleRounded />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                size="large"
+                variant="contained"
                 disabled={!userName.trim() || isBusy}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-4 px-6 rounded-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-95 shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                startIcon={isBusy ? <CircularProgress size={18} color="inherit" /> : undefined}
+                sx={{ mt: 2.5 }}
               >
                 {isBusy ? 'Starting…' : action === 'create' ? 'Start call' : 'Join call'}
-              </button>
-            </div>
-          </div>
-        )}
+              </Button>
+            </Box>
+          )}
+        </Paper>
 
-        {notification && (
-          <div
-            role="status"
-            className={`p-4 rounded-2xl text-sm border backdrop-blur-md animate-slide-in ${
-              notification.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-              notification.type === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-              'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
-            }`}
-          >
-            {notification.message}
-          </div>
-        )}
-
-        <div className="text-center text-sm text-slate-500 animate-slide-in">
-          <p>No accounts · encrypted in transit · rooms vanish when empty</p>
-        </div>
-      </div>
-    </div>
+        <Box
+          component="ul"
+          sx={{ gridArea: 'facts', alignSelf: 'start', listStyle: 'none', m: 0, p: 0, display: 'grid', gap: 2, maxWidth: '42ch' }}
+        >
+          {facts.map(({ Icon, text }) => (
+            <Box component="li" key={text} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+              <Icon sx={{ color: 'primary.main', mt: '1px' }} />
+              <Typography variant="body1" color="text.secondary" sx={{ textWrap: 'pretty' }}>
+                {text}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    </Box>
   );
 }
